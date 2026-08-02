@@ -43,7 +43,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 3. Render Cached UI INSTANTLY (<50ms)
     try {
-        await refreshInboxCardsUI();
+        const localTopics = await getAllLocalTopics();
+        const serverRenderedCards = document.querySelectorAll('#topic-grid-container .topic-card').length > 0;
+
+        // Keep the server-rendered cards visible on first login while the local mirror
+        // is being populated by the background sync.
+        if (localTopics.length > 0 || !serverRenderedCards) {
+            await refreshInboxCardsUI();
+        } else {
+            console.log('[AppInit] Preserving server-rendered topics until initial sync completes.');
+        }
     } catch (e) {
         console.error('[AppInit] refreshInboxCardsUI error:', e);
     }
@@ -54,9 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 5. Asynchronously trigger silent server sync & background queue processing without blocking UI
     setTimeout(() => {
         if (navigator.onLine) {
-            autoRetryFailedTopics();
-            syncServerTopicsSilently();
-            triggerBackgroundQueueProcessingThrottled();
+            reconcileOnlineState();
         }
     }, 100);
 
@@ -96,13 +103,29 @@ async function cleanupExpiredTopics() {
 async function autoRetryFailedTopics() {
     try {
         const topics = await getAllLocalTopics();
-        const needsRetry = topics.filter(t => ['WAITING_FOR_NETWORK', 'FAILED', 'AI_UNAVAILABLE'].includes(t.status));
+        const needsRetry = topics.filter(t => ['FAILED', 'AI_UNAVAILABLE'].includes(t.status));
         for (const t of needsRetry) {
-            window.retryTopic(t.id, true);
+            await window.retryTopic(t.id, true);
         }
     } catch(e) {
         console.error('[AppInit] autoRetryFailedTopics error:', e);
     }
+}
+
+function isLocalOnlyTopic(topic) {
+    if (!topic) return false;
+    const numericId = Number(topic.id);
+    return topic.localOnly === true
+        || topic.status === 'WAITING_FOR_NETWORK'
+        || (typeof topic.id === 'string' && topic.id.startsWith('temp-'))
+        || (Number.isSafeInteger(numericId) && numericId >= 1000000000000);
+}
+
+async function reconcileOnlineState() {
+    if (!navigator.onLine) return;
+    await syncServerTopicsSilently();
+    await autoRetryFailedTopics();
+    await triggerBackgroundQueueProcessingThrottled(true);
 }
 
 function initNetworkMonitor() {
@@ -113,9 +136,7 @@ function initNetworkMonitor() {
         if (navigator.onLine) {
             statusBadge.className = 'status-badge online';
             statusBadge.innerHTML = '<span class="dot"></span><span>Online</span>';
-            autoRetryFailedTopics();
-            syncServerTopicsSilently();
-            triggerBackgroundQueueProcessingThrottled();
+            reconcileOnlineState();
         } else {
             statusBadge.className = 'status-badge offline';
             statusBadge.innerHTML = '<span class="dot"></span><span>Offline</span>';
@@ -134,7 +155,9 @@ function initQuickCaptureForm() {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const titleInput = document.getElementById('topic-title');
+        const directionInput = document.getElementById('topic-direction');
         const title = titleInput.value.trim();
+        const direction = directionInput ? directionInput.value.trim() : '';
         if (!title) return;
 
         const tempId = 'temp-' + Date.now();
@@ -142,17 +165,22 @@ function initQuickCaptureForm() {
             id: tempId,
             title: title,
             status: 'CAPTURED',
+            captureSource: 'MANUAL',
+            localOnly: true,
+            direction: direction || undefined,
             createdAt: new Date().toISOString()
         };
 
         prependTopicCardToUI(tempTopic);
         titleInput.value = '';
+        if (directionInput) directionInput.value = '';
         showToast(`'${title}' captured!`, 'success');
 
         try {
             const formData = new URLSearchParams();
             formData.append('title', title);
             formData.append('source', 'MANUAL');
+            if (direction) formData.append('direction', direction);
 
             const response = await fetch('./topic', {
                 method: 'POST',
@@ -179,6 +207,7 @@ function initQuickCaptureForm() {
             removeTopicCardFromUI(tempId);
             tempTopic.status = 'WAITING_FOR_NETWORK';
             tempTopic.id = Date.now(); 
+            tempTopic.localOnly = true;
             await saveTopicLocally(tempTopic);
             prependTopicCardToUI(tempTopic);
         }
@@ -204,6 +233,8 @@ window.captureRelatedConcept = async function(title) {
         id: tempId,
         title: title,
         status: 'CAPTURED',
+        captureSource: 'RELATED_CONCEPT',
+        localOnly: true,
         createdAt: new Date().toISOString()
     };
     prependTopicCardToUI(tempTopic);
@@ -231,7 +262,56 @@ window.captureRelatedConcept = async function(title) {
         }
     } catch (err) {
         console.warn('[CaptureRelated] Background error:', err);
+        removeTopicCardFromUI(tempId);
+        tempTopic.status = 'WAITING_FOR_NETWORK';
+        tempTopic.id = Date.now();
+        tempTopic.localOnly = true;
+        await saveTopicLocally(tempTopic);
+        prependTopicCardToUI(tempTopic);
     }
+}
+
+async function syncPendingOfflineCaptures() {
+    const localTopics = await getAllLocalTopics();
+    const pendingTopics = localTopics.filter(isLocalOnlyTopic);
+    let syncedCount = 0;
+
+    for (const topic of pendingTopics) {
+        try {
+            console.log('[OFFLINE SYNC] Creating server topic for local capture:', topic.id, topic.title);
+            const formData = new URLSearchParams();
+            formData.append('title', topic.title || 'Untitled concept');
+            if (topic.direction) formData.append('direction', topic.direction);
+            formData.append('source', topic.captureSource || 'MANUAL');
+
+            const response = await fetch('./topic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData.toString()
+            });
+
+            let serverTopic = null;
+            try {
+                serverTopic = await response.json();
+            } catch (parseError) {
+                throw new Error(`Offline capture response was not valid JSON (HTTP ${response.status}).`);
+            }
+            if (!response.ok || !serverTopic.id) {
+                throw new Error(serverTopic.error || `Offline capture sync failed with HTTP ${response.status}.`);
+            }
+
+            serverTopic.isPinned = Boolean(topic.isPinned);
+            serverTopic.pinSyncPending = Boolean(topic.pinSyncPending);
+            await deleteTopicLocally(topic.id);
+            await saveTopicLocally(serverTopic);
+            syncedCount++;
+            console.log('[OFFLINE SYNC] Local capture replaced with server topic:', serverTopic.id);
+        } catch (err) {
+            console.error('[OFFLINE SYNC] Failed for local topic:', topic.id, err);
+        }
+    }
+
+    return syncedCount;
 }
 
 async function syncPendingPinChanges() {
@@ -275,9 +355,10 @@ async function syncServerTopicsSilently(failLoudly = false) {
         }
 
         try {
+            await syncPendingOfflineCaptures();
             await syncPendingPinChanges();
-        } catch (pinSyncError) {
-            console.error('[PIN] Pending pin sync failed:', pinSyncError);
+        } catch (syncError) {
+            console.error('[SYNC] Pending offline changes failed:', syncError);
         }
 
         const response = await fetch('./sync', { headers: { 'Accept': 'application/json' } });
@@ -329,6 +410,9 @@ async function triggerBackgroundQueueProcessingThrottled(force = false) {
     showQueuePill('Processing concepts...');
 
     try {
+        // Show the active preparation state immediately while the server processes the queue.
+        // The persisted status remains unchanged until the server returns its authoritative DTOs.
+        await refreshInboxCardsUI();
         const response = await fetch('./topic?action=process_queue', { method: 'POST' });
         if (response.ok) {
             const processedTopics = await response.json();
@@ -349,6 +433,7 @@ async function triggerBackgroundQueueProcessingThrottled(force = false) {
         hideQueuePill();
     } finally {
         isQueueProcessing = false;
+        await refreshInboxCardsUI();
     }
 }
 
@@ -684,7 +769,8 @@ window.togglePin = async function(id) {
     console.log('[PIN] UI requested state:', desiredPinState);
 
     try {
-        if (!navigator.onLine) {
+        const isPendingOfflineCapture = !navigator.onLine || isLocalOnlyTopic(topic);
+        if (isPendingOfflineCapture) {
             topic.isPinned = desiredPinState;
             topic.pinSyncPending = true;
             await saveTopicLocally(topic);
@@ -764,17 +850,23 @@ function createTopicCardHtml(topic) {
     }
 
     let statusBadgeHtml = '';
-    if (status === 'CAPTURED' || status === 'WAITING_FOR_NETWORK') {
-        statusBadgeHtml = `<span class="badge badge-warning"><i data-lucide="clock-3" aria-hidden="true"></i>Queued</span>`;
+    const isOfflineCapture = isLocalOnlyTopic(topic);
+    if (isOfflineCapture) {
+        statusBadgeHtml = `<span class="badge badge-warning"><i data-lucide="cloud-off" aria-hidden="true"></i>Captured Offline</span>`;
+    } else if (status === 'CAPTURED') {
+        statusBadgeHtml = `<span class="badge badge-warning"><i data-lucide="clock-3" aria-hidden="true"></i>Waiting to Start</span>`;
     } else if (status === 'GENERATING') {
         statusBadgeHtml = `<span class="badge badge-info"><i data-lucide="clock-3" aria-hidden="true"></i>Preparing Guide...</span>`;
     } else if (status === 'READY_OFFLINE') {
         statusBadgeHtml = `<span class="badge badge-success"><i data-lucide="check-circle" aria-hidden="true"></i>Ready Offline</span>`;
     } else {
-        statusBadgeHtml = `<button onclick="retryTopic('${topic.id}')" class="badge badge-danger" style="cursor:pointer; border:none;"><i data-lucide="triangle-alert" aria-hidden="true"></i>Failed — Retry</button>`;
+        statusBadgeHtml = `<button onclick="retryTopic('${topic.id}')" class="badge badge-danger" style="cursor:pointer; border:none;"><i data-lucide="triangle-alert" aria-hidden="true"></i>Try Again</button>`;
     }
 
     const actionLabel = status === 'READY_OFFLINE' ? 'Study' : 'View Status';
+    const actionHtml = isOfflineCapture
+        ? '<button class="btn btn-secondary" style="flex:1; font-size:13px; padding:8px 14px;" disabled>Captured Offline</button>'
+        : `<a href="./topic?id=${topic.id}" class="btn btn-secondary" style="flex:1; text-align:center; font-size:13px; padding:8px 14px;">${actionLabel}</a>`;
 
     return `
         <div id="topic-card-${topic.id}" class="topic-card ${isPinned ? 'pinned' : ''}" style="position:relative; overflow:hidden;">
@@ -793,9 +885,7 @@ function createTopicCardHtml(topic) {
             </div>
 
             <div class="topic-card-actions">
-                <a href="./topic?id=${topic.id}" class="btn btn-secondary" style="flex:1; text-align:center; font-size:13px; padding:8px 14px;">
-                    ${actionLabel}
-                </a>
+                ${actionHtml}
                 <button onclick="deleteTopic('${topic.id}')" class="btn-icon" style="color:var(--danger);" title="Delete" aria-label="Delete" ${isDeleting ? 'disabled aria-busy="true"' : ''}><i data-lucide="trash-2" aria-hidden="true"></i></button>
             </div>
         </div>

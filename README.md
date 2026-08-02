@@ -92,11 +92,11 @@ Ask a follow-up through Chrome Gemini Nano, if available
 
 The dashboard has a deliberately small capture surface. A title is enough to create a topic. The browser adds an optimistic card immediately, then sends the title and capture source to `TopicServlet`.
 
-If the request succeeds, the server-created topic replaces the temporary card and is saved to IndexedDB. If the request fails, the client keeps a local topic in `WAITING_FOR_NETWORK` so the thought is not lost.
+If the request succeeds, the server-created topic replaces the temporary card and is saved to IndexedDB. If the request fails, the client keeps a local-only topic in `WAITING_FOR_NETWORK` so the thought is not lost. When connectivity returns, the client creates the server topic, replaces the temporary local record, and then lets the normal queue process enrichment.
 
 ### Learning direction
 
-Each topic carries a learning direction. The user can choose an intuition-first explanation, an academic direction, interview preparation, or a custom instruction. The direction is stored on the topic and passed into the Gemini prompt.
+Each topic carries a learning direction. Settings provide the default, while the capture bar can override it for an individual concept. The user can choose an intuition-first explanation, an academic direction, interview preparation, or a custom instruction. The direction is stored on the topic and passed into the Gemini prompt.
 
 The account also has a default direction, managed through the Settings modal and `/settings` or `/preference`.
 
@@ -161,10 +161,10 @@ The current dashboard filters translate user-facing labels into backend states:
 
 | Dashboard label | Stored statuses |
 | --- | --- |
-| All | Every local topic |
-| Ready | `READY_OFFLINE` |
-| Preparing | `CAPTURED`, `WAITING_FOR_NETWORK`, `GENERATING` |
-| Needs Attention | `FAILED`, `AI_UNAVAILABLE` |
+| All Concepts | Every local topic |
+| Ready to Study | `READY_OFFLINE` |
+| Not Ready Yet | `CAPTURED`, `WAITING_FOR_NETWORK`, `GENERATING` |
+| Generation Issues | `FAILED`, `AI_UNAVAILABLE` |
 
 ### Deterministic deletion
 
@@ -242,7 +242,7 @@ sequenceDiagram
     Worker->>Topic: POST /topic?action=process_queue
 ```
 
-If the capture request cannot reach Tomcat, the browser changes the optimistic record to `WAITING_FOR_NETWORK` and stores it locally. The current code does not implement a general server outbox for every offline mutation; capture fallback is handled directly in `app.js`.
+If the capture request cannot reach Tomcat, the browser changes the optimistic record to `WAITING_FOR_NETWORK` and stores it locally. On reconnection, `app.js` posts those local-only captures to Tomcat before syncing pin changes and the server topic list. This is a capture-specific reconciliation path, not a general outbox for every offline mutation.
 
 ### Queue worker
 
@@ -412,7 +412,7 @@ The enum lives in `Topic.Status`. The user-facing labels are intentionally frien
 | `FAILED` | A failure state supported by the model and client retry paths | Recognized by filters and retry logic; the current queue endpoint primarily uses `AI_UNAVAILABLE` on failures |
 | `AI_UNAVAILABLE` | Enrichment could not be completed because AI configuration, quota, network, or an exception prevented a result | Null result or caught queue exception |
 
-The dashboard presents these as `All`, `Ready`, `Preparing`, and `Needs Attention`. The backend enum values remain unchanged.
+The dashboard presents these as `All Concepts`, `Ready to Study`, `Not Ready Yet`, and `Generation Issues`. The backend enum values remain unchanged.
 
 ## Database Design
 
@@ -792,4 +792,3 @@ There is currently no contributor license agreement or automated CI workflow in 
 ## License
 
 No `LICENSE` file is currently present. The project owner should add the intended license before distributing the repository as an open-source project.
-

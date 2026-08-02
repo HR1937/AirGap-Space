@@ -103,6 +103,13 @@
                     <!-- Pending / Failed State -->
                     <div style="padding: 40px 24px; text-align: center; background: var(--bg-primary); border: 1px dashed var(--bg-card-border); border-radius: var(--radius-lg); margin-top: 12px;">
                         <c:choose>
+                            <c:when test="${topic.status == 'WAITING_FOR_NETWORK'}">
+                                <div class="state-icon" aria-hidden="true"><i data-lucide="cloud-off"></i></div>
+                                <h3 style="font-size: 17px; font-weight: 600; margin-bottom: 8px; color: var(--text-main);">Captured Offline</h3>
+                                <p style="font-size: 14px; color: var(--text-muted); max-width: 440px; margin: 0 auto 20px auto; line-height: 1.6;">
+                                    This concept is safe on your device and will be sent for guide preparation when internet returns.
+                                </p>
+                            </c:when>
                             <c:when test="${topic.status == 'AI_UNAVAILABLE' || topic.status == 'FAILED'}">
                                 <div class="state-icon" aria-hidden="true"><i data-lucide="triangle-alert"></i></div>
                                 <h3 style="font-size: 17px; font-weight: 600; margin-bottom: 8px; color: var(--text-main);">Generation Failed</h3>
@@ -110,18 +117,22 @@
                                     The AI service was unavailable. This could be due to rate limits, network issues, or API configuration.
                                 </p>
                                 <button onclick="retryTopic(${topic.id})" class="btn btn-primary" style="padding: 10px 24px; font-size: 14px;">
-                                    Retry Generation
+                                    Try Again
                                 </button>
                             </c:when>
-                            <c:otherwise>
+                            <c:when test="${topic.status == 'GENERATING'}">
                                 <div class="state-icon" aria-hidden="true"><i data-lucide="clock-3"></i></div>
                                 <h3 style="font-size: 17px; font-weight: 600; margin-bottom: 8px; color: var(--text-main);">Preparing Guide...</h3>
                                 <p style="font-size: 14px; color: var(--text-muted); max-width: 440px; margin: 0 auto 20px auto; line-height: 1.6;">
                                     This concept was captured successfully. The study guide will appear automatically once enrichment finishes.
                                 </p>
-                                <button onclick="retryTopic(${topic.id})" class="btn btn-secondary" style="padding: 10px 20px; font-size: 13px;">
-                                    Retry Now
-                                </button>
+                            </c:when>
+                            <c:otherwise>
+                                <div class="state-icon" aria-hidden="true"><i data-lucide="clock-3"></i></div>
+                                <h3 style="font-size: 17px; font-weight: 600; margin-bottom: 8px; color: var(--text-main);">Waiting to Start</h3>
+                                <p style="font-size: 14px; color: var(--text-muted); max-width: 440px; margin: 0 auto 20px auto; line-height: 1.6;">
+                                    This concept is captured and will begin guide preparation automatically.
+                                </p>
                             </c:otherwise>
                         </c:choose>
                     </div>

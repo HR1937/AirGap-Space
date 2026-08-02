@@ -1,5 +1,5 @@
 // sw.js - Service Worker for AirGap Study App Shell & Offline Storage
-const CACHE_NAME = 'airgap-v3.0.0';
+const CACHE_NAME = 'airgap-v3.0.1';
 
 const ASSETS_TO_CACHE = [
     './',

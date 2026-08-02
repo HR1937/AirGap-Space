@@ -43,9 +43,13 @@
         <div class="capture-card">
             <form id="quick-capture-form">
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <div style="flex: 1;">
+                    <div style="flex: 1; min-width: 180px;">
                         <input type="text" id="topic-title" class="form-control"
                             placeholder="What's on your mind?" required autocomplete="off">
+                    </div>
+                    <div style="flex: 1; min-width: 180px;">
+                        <input type="text" id="topic-direction" class="form-control"
+                            placeholder="Optional learning direction..." autocomplete="off" aria-label="Optional learning direction">
                     </div>
                     <button type="submit" id="capture-btn" class="btn btn-primary" style="height: 44px; padding: 0 20px; white-space: nowrap;">
                         <i data-lucide="plus" aria-hidden="true"></i>
@@ -58,10 +62,10 @@
         <!-- Filters & Search -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
             <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                <span class="inbox-filter-pill active" data-filter="ALL">All</span>
-                <span class="inbox-filter-pill" data-filter="READY_OFFLINE">Ready</span>
-                <span class="inbox-filter-pill" data-filter="PREPARING">Preparing</span>
-                <span class="inbox-filter-pill" data-filter="NEEDS_ATTENTION">Needs Attention</span>
+                <span class="inbox-filter-pill active" data-filter="ALL">All Concepts</span>
+                <span class="inbox-filter-pill" data-filter="READY_OFFLINE">Ready to Study</span>
+                <span class="inbox-filter-pill" data-filter="PREPARING">Not Ready Yet</span>
+                <span class="inbox-filter-pill" data-filter="NEEDS_ATTENTION">Generation Issues</span>
             </div>
 
             <div class="search-field" style="width: 240px; min-width: 180px;">
@@ -87,8 +91,11 @@
 
                                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                                     <c:choose>
-                                        <c:when test="${topic.status == 'CAPTURED' || topic.status == 'WAITING_FOR_NETWORK'}">
-                                            <span class="badge badge-warning"><i data-lucide="clock-3" aria-hidden="true"></i>Queued</span>
+                                        <c:when test="${topic.status == 'WAITING_FOR_NETWORK'}">
+                                            <span class="badge badge-warning"><i data-lucide="cloud-off" aria-hidden="true"></i>Captured Offline</span>
+                                        </c:when>
+                                        <c:when test="${topic.status == 'CAPTURED'}">
+                                            <span class="badge badge-warning"><i data-lucide="clock-3" aria-hidden="true"></i>Waiting to Start</span>
                                         </c:when>
                                         <c:when test="${topic.status == 'GENERATING'}">
                                             <span class="badge badge-info"><i data-lucide="clock-3" aria-hidden="true"></i>Preparing Guide...</span>
@@ -99,7 +106,7 @@
                                         <c:otherwise>
                                             <button onclick="retryTopic(${topic.id})" class="badge badge-danger" style="cursor:pointer; border:none;">
                                                 <i data-lucide="triangle-alert" aria-hidden="true"></i>
-                                                Failed — Retry
+                                                Try Again
                                             </button>
                                         </c:otherwise>
                                     </c:choose>
@@ -129,6 +136,7 @@
                 </c:otherwise>
             </c:choose>
         </div>
+
     </div>
 
     <!-- Onboarding Wizard -->
@@ -231,15 +239,15 @@
                 </div>
                 <div style="background: var(--bg-primary); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--bg-card-border);">
                     <div style="font-weight: 600; margin-bottom: 3px;">Direction</div>
-                    <div style="color: var(--text-muted); font-size: 12px;">Your learning direction controls how topics are explained: interview prep, intuition-first, academic, or custom.</div>
+                    <div style="color: var(--text-muted); font-size: 12px;">Settings provide your default direction. You can override it for an individual concept from the optional capture field.</div>
                 </div>
                 <div style="background: var(--bg-primary); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--bg-card-border);">
                     <div style="font-weight: 600; margin-bottom: 3px;">Ready Offline</div>
                     <div style="color: var(--text-muted); font-size: 12px;">Once AI enrichment completes, the full knowledge pack is stored in your browser's IndexedDB for 100% offline access.</div>
                 </div>
                 <div style="background: var(--bg-primary); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--bg-card-border);">
-                    <div style="font-weight: 600; margin-bottom: 3px;">Queued Offline</div>
-                    <div style="color: var(--text-muted); font-size: 12px;">Concepts captured offline are queued. When you reconnect, they're automatically sent for AI enrichment.</div>
+                    <div style="font-weight: 600; margin-bottom: 3px;">Captured Offline</div>
+                    <div style="color: var(--text-muted); font-size: 12px;">The concept name is captured on this device without internet. When you reconnect, it is sent for AI enrichment automatically.</div>
                 </div>
                 <div style="background: var(--bg-primary); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--bg-card-border);">
                     <div style="font-weight: 600; margin-bottom: 3px;">Offline Follow-ups</div>
