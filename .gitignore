@@ -1,0 +1,29 @@
+# Maven build output
+target/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE metadata
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+# Compiled Java output
+*.class
+
+# Logs and runtime files
+*.log
+hs_err_pid*
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+
+# Local JavaScript dependencies, if added for tooling
+node_modules/
