@@ -757,18 +757,73 @@ These are realistic next steps based on the current implementation:
 - Add a deployment container or documented Tomcat/MySQL infrastructure once the hosting target is chosen.
 - Add a formal license and contribution policy to the repository.
 
-## Screenshots
+## 📸 Screenshots
 
-The repository currently does not contain screenshot assets. Suggested screenshots for a future release README:
+AirGap Study is built around one simple idea: **capture curiosity when it appears, even if the internet doesn't.**
 
-```text
-docs/screenshots/dashboard.png       # Inbox, capture bar, filters, pinned card
-docs/screenshots/topic-view.png      # Progressive reader and quick check
-docs/screenshots/mobile.png          # Responsive dashboard at a narrow viewport
-docs/screenshots/offline.png         # Offline topic reading and network badge
-docs/screenshots/preparing.png       # Preparing state and queue pill
-docs/screenshots/ai-unavailable.png  # Retry and configuration guidance
-```
+---
+
+### 🏠 Dashboard
+
+The central workspace where you quickly capture concepts, organize your inbox, pin important topics, and monitor the AI enrichment queue.
+
+![Dashboard](docs/airgap-dashboard.png)
+
+---
+
+### 📖 AI Learning Guide
+
+Every captured concept is transformed into a structured learning guide that explains:
+
+- Why the concept exists
+- The intuition behind it
+- Practical examples
+- Mental models
+- Active recall questions
+- Related concepts to explore next
+
+![Learning Guide](docs/airgap-content.png)
+
+---
+
+### 🤖 Offline Follow-up AI
+
+Even without an internet connection, previously generated knowledge can be explored further using the browser's on-device AI capabilities.
+
+![Offline AI](docs/airgap-offline-answer.png)
+
+---
+
+### 🎯 Personalized Learning Direction
+
+Choose the perspective from which every concept should be explained before it is processed by AI.
+
+Examples include:
+
+- Interview preparation
+- College syllabus
+- First principles
+- Research
+- Practical implementation
+
+![Default Direction](docs/airgap-setting-default-direction.png)
+
+---
+
+### 🎨 Logo Design Philosophy
+
+The AirGap Study logo was intentionally designed to represent the core idea behind the project instead of being just another icon.
+
+It symbolizes:
+
+- learning during disconnected moments
+- progress through small learning sessions
+- taking control of your own curiosity
+- moving forward even when the internet is unavailable
+
+The complete design philosophy is shown below.
+
+![Logo Philosophy](docs/airgap-logo-explanation.png)
 
 ## Logo and Product Identity
 
@@ -789,6 +844,3 @@ AirGap Study is a personal project, but contributions can still be made carefull
 
 There is currently no contributor license agreement or automated CI workflow in the repository.
 
-## License
-
-No `LICENSE` file is currently present. The project owner should add the intended license before distributing the repository as an open-source project.
